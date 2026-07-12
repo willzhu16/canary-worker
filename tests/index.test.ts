@@ -1,6 +1,27 @@
 import { describe, expect, it } from 'vitest';
+import worker from '../src/index.js';
 import { formatLine } from '../src/lib/log.js';
 import { withSecurityHeaders } from '../src/middleware/security-headers.js';
+
+describe('fetch handler', () => {
+  const env = { PROJECT_VERSION: 'v0.0.0' };
+
+  it('serves the root greeting', async () => {
+    const response = await worker.fetch(new Request('https://canary.test/'), env);
+    expect(response.status).toBe(200);
+    await expect(response.text()).resolves.toContain('canary-worker');
+  });
+
+  it('reports the release version on /healthz', async () => {
+    const response = await worker.fetch(new Request('https://canary.test/healthz'), env);
+    await expect(response.json()).resolves.toEqual({ version: 'v0.0.0' });
+  });
+
+  it('returns 404 for unknown routes', async () => {
+    const response = await worker.fetch(new Request('https://canary.test/nope'), env);
+    expect(response.status).toBe(404);
+  });
+});
 
 describe('withSecurityHeaders', () => {
   it('applies the standard security headers', () => {
