@@ -11,7 +11,10 @@ const handle = (request: Request, env: Env): Response => {
   if (url.pathname === '/healthz') {
     return Response.json({ version: env.PROJECT_VERSION });
   }
-  return new Response('Hello from canary-worker');
+  if (url.pathname === '/') {
+    return new Response('Hello from canary-worker');
+  }
+  return new Response('Not Found', { status: 404 });
 };
 
 export default {
