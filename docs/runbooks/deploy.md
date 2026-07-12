@@ -34,4 +34,8 @@ If a deploy goes wrong, follow [rollback.md](rollback.md).
 
 ## Last tested
 
-Not yet tested — run the deploy + rollback drill once and record the date here.
+2026-07-12 — v1.0.0, both paths: the tag-driven release (merge release PR → tag →
+build → artifact + hashes → deploy) and the manual redeploy command above. Verified
+live: `/healthz` returned `{"version":"v1.0.0"}`. One-time snag worth knowing: the
+first deploy in a Cloudflare account fails until a `workers.dev` subdomain is
+registered (dashboard → Workers & Pages → "Your subdomain").
