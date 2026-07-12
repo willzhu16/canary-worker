@@ -40,4 +40,7 @@ systemic fix filed as a platform/template issue).
 
 ## Last tested
 
-Not yet tested — run the rollback drill once and record the date here.
+2026-07-12 — the tag-redeploy path only: `gh workflow run release.yml --ref v1.0.0
+-f tag=v1.0.0` rebuilt and redeployed v1.0.0 end to end (this is the same mechanism
+a rollback to an earlier tag uses). The `wrangler rollback` fastest path is untested:
+only one version exists so far — test it after the first real v1.0.1+.
