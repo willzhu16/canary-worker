@@ -1,0 +1,13 @@
+# Changes here will be overwritten by Copier; NEVER EDIT MANUALLY.
+# Records the answers + template ref so `copier update` (D-05) can pull template fixes
+# into this project as reviewable diffs. Commit this file.
+_commit: v1
+_src_path: gh:willzhu16/platform
+bindings: []
+description: Canary project exercising the Artemis pipeline
+needs_scheduled_jobs: true
+project_name: canary-worker
+public_forms: true
+template: cf-worker-app
+visibility: public
+
