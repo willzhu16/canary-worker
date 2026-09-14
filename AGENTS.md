@@ -1,4 +1,4 @@
-<!-- ATHENA-COMPILED v1 sha:62888821de3cac8f — edit .athena/project.md or the athena repo, never this file -->
+<!-- ATHENA-COMPILED v1 sha:d27fbec5b132f2b9 — edit .athena/project.md or the athena repo, never this file -->
 
 # Universal working rules
 
@@ -44,7 +44,7 @@ Done means every item in the handbook definition-of-done, in particular:
 - Docs updated in the same PR (README / runbooks / ADR as applicable); no debug logging,
   commented-out code, or stray TODOs left in the diff.
 
-See `platform/handbook/definition-of-done.md`.
+See the [definition of done](https://github.com/willzhu16/platform/blob/v1/handbook/definition-of-done.md).
 
 ## Tests come first
 
@@ -71,7 +71,9 @@ See `platform/handbook/definition-of-done.md`.
 - Work on a branch named `agent/<tool>/<task-slug>`; put the packet number in the PR title
   (`feat: … (#42)`). End the PR body with the session log (see 00 §Session log).
 
-## Anti-loop (binding; full protocol in review-protocol.md)
+## Anti-loop
+
+Full [review protocol](https://github.com/willzhu16/athena/blob/v1/review-protocol.md).
 
 - A fix that fails its gate **twice in a row** = stop, summarise the disagreement, ask.
   Do not try a third variation — two failures mean the mental model is wrong.
@@ -106,15 +108,16 @@ hand-edit — editing CLAUDE.md or AGENTS.md directly never survives.
 # Security rules for agents
 
 Applies to every repo. Derived from ARCHITECTURE §5.8 (AI-assisted coding threat model).
-These are not suggestions — several map to hard permission denials (spec 06 §4), and the
-deterministic gates (spec 02) are the backstop for the rest.
+Follow these rules. Claude's profile denies named tool calls; this is not a sandbox.
+Allowed tests and scripts can execute subprocesses. Keep production credentials out of
+agent environments and use filesystem/network isolation for boundaries that must hold.
 
 ## Secrets never enter model context
 
 - You get the **names** of secrets (`CLOUDFLARE_API_TOKEN`, `age` key) and where they
   live, never their values. Do not ask for values, print them, or paste them anywhere.
 - Do not run secret-reading commands: `sops -d` / `sops --decrypt`, `wrangler secret
-  list|put`, `gh secret`. These are denied in the T1 profile; if you think you need a
+  list|put`, `gh secret`. Direct forms are denied in the T1 profile; if you think you need a
   secret, you are on the wrong path — ask the human which store it belongs in (spec 06
   four-store model) and stop.
 - Never write under `secrets/` or to `.env*` files, and never commit an unencrypted file
@@ -143,15 +146,15 @@ deterministic gates (spec 02) are the backstop for the rest.
 - Do not edit files under `.github/workflows/`, `infra/`, `wrangler.jsonc` bindings, or
   `.sops.yaml` unless the packet explicitly says so. CI and deploy config is
   security-critical; changing it is never a drive-by.
-- Deploy and destroy are not yours. Production credentials are structurally absent from
-  your environment (spec 06) — `wrangler deploy`, `tofu apply`, resource creation/deletion
-  will fail by design. Do not try to work around that; it is a boundary, not a bug.
+- Deploy and destroy are not yours: `wrangler deploy`, `tofu apply`, resource creation or
+  deletion require human authorization. Never assume credentials are absent or a command
+  will fail safely, and never work around a denial using a wrapper or interpreter.
 
 ## When a security gate fires
 
 A gitleaks hit is stop-everything: do not "fix" it by deleting the line and moving on.
 Surface it, and follow the leak-response runbook (rotate first, then purge history —
-`platform/security/README.md`).
+[security guidance](https://github.com/willzhu16/platform/blob/v1/security/README.md)).
 
 # TypeScript conventions
 
@@ -169,8 +172,8 @@ linter cannot check.
   the need for a comment.
 - **Small functions.** Keep functions under ~40 lines. When one grows past that, extract
   named helpers — the extraction usually reveals the real shape of the problem.
-- **Named exports only, never default.** Named exports make refactors and find-all-refs
-  reliable; default exports rename silently and hide from tooling.
+- Prefer named exports for application code; preserve framework-required default exports
+  such as the Cloudflare Worker entry point and tool configuration files.
 - **`const` by default.** Reach for `let` only when you truly reassign; never `var`.
 - **Types are contracts, not decoration.** Prefer precise types over `any`; if you reach
   for `any`, leave a comment saying why. `unknown` + narrowing beats `any` almost always.
