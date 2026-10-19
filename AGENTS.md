@@ -1,4 +1,4 @@
-<!-- ATHENA-COMPILED v1 sha:d27fbec5b132f2b9 — edit .athena/project.md or the athena repo, never this file -->
+<!-- ATHENA-COMPILED v1 sha:c5247afe4a2b0620 — edit .athena/project.md or the athena repo, never this file -->
 
 # Universal working rules
 
@@ -37,14 +37,28 @@ Applies to every repo and every tool.
 
 Done means every item in the handbook definition-of-done, in particular:
 
-- All CI gates green: lint, typecheck, tests (spec 01), gitleaks, semgrep, osv (spec 02).
+- All CI gates green: lint, typecheck, tests (spec 01), gitleaks, semgrep, osv (spec 02),
+  plus coverage, mutation, acceptance and smoke where the repo runs them.
 - A new test that **fails without your change** covers the behaviour (regression rule).
 - Behaviour verified by actually running it — green tests prove the tests pass, not that
   the feature works. Include the evidence (command output, transcript) in the PR.
 - Docs updated in the same PR (README / runbooks / ADR as applicable); no debug logging,
   commented-out code, or stray TODOs left in the diff.
 
-See the [definition of done](https://github.com/willzhu16/platform/blob/v1/handbook/definition-of-done.md).
+See the [definition of done](https://github.com/willzhu16/platform/blob/v1/handbook/definition-of-done.md)
+and the [testing standard](https://github.com/willzhu16/platform/blob/v1/handbook/testing-standard.md).
+
+## Hooks remember the rules so you do not have to
+
+Claude-enabled repos ship `.claude/hooks/gate.mjs`, wired by `.claude/settings.json`. It runs
+lint and typecheck when you try to end a turn and blocks the turn while either is red, so
+"done" means the gate ran, not that you believed it would pass. A tool without hook support
+gets no such net: run the same gate yourself before you claim anything.
+
+- Never weaken a hook to get a turn to end. `doctor` compares hooks byte-for-byte and reports
+  an edit as drift — editing your own supervision is the one change nobody asked for.
+- **A command you keep running by hand belongs in a hook.** Notice the repetition, say so, and
+  propose the hook. A rule that runs is worth more than a rule that is written down.
 
 ## Tests come first
 
@@ -55,14 +69,20 @@ See the [definition of done](https://github.com/willzhu16/platform/blob/v1/handb
   `rejects an expired token`, not `tests validate()`. Read in order, a file's test names
   should read as that module's specification.
 - A test that has never failed has proven nothing. If it passed before your change, it is
-  not covering your change — make it fail on purpose once before you trust it.
+  not covering your change — make it fail on purpose once before you trust it. The mutation
+  gate enforces that: a test asserting nothing fails the build.
+- **Criteria carry ids and tests claim them.** The packet numbers each criterion
+  (`- AC-1: ...`); a test claims one by naming it — `AC-1:`, or `test_ac_1_...` where names
+  must be identifiers. Mentioning an id covers nothing. A criterion checkable only by hand
+  gets no id; say in the PR how you checked it.
+- Never lower a coverage or mutation floor to go green; add the missing test.
 
 ## Honesty
 
-- Report failures plainly. Never claim something works that you have not run.
-- Ground every progress claim in a tool result from this session. If a step was skipped
-  or a test failed, say so — with the output.
-- "It compiles" is not verification. "Done" without having run something is not done.
+- Report failures plainly, with the output. Ground every progress claim in a tool result from
+  this session; if a step was skipped or a test failed, say so.
+- "It compiles" is not verification. The gate hook holds that line at turn end; between turns
+  it is yours to hold.
 
 ## Commits and attribution
 
@@ -73,24 +93,21 @@ See the [definition of done](https://github.com/willzhu16/platform/blob/v1/handb
 
 ## Anti-loop
 
-Full [review protocol](https://github.com/willzhu16/athena/blob/v1/review-protocol.md).
-
 - A fix that fails its gate **twice in a row** = stop, summarise the disagreement, ask.
   Do not try a third variation — two failures mean the mental model is wrong.
-- Max two AI review rounds per PR; round three is a human decision.
 - Do not re-litigate settled decisions (DECISIONS.md, in-repo ADRs) or the packet's
   non-goals. Disagreement becomes an issue, not a review comment or a silent workaround.
 
+Review has one further limit of its own. The `review-protocol` skill carries it and loads
+when reviewing is what you are actually doing.
+
 ## Session log
 
-Every meaningful agent session ends by appending this block to the PR description — it is
-the audit trail and the input to improving these layers:
-
-```
-## Session log
-Tool/model: … | Packet: #NN
-Tried: … | Dead ends: … | Decisions made and why: …
-```
+Every agent session ends by appending a session-log block to the PR description: the audit
+trail, and the input to improving these layers. Nine fields, one per line, six of them
+enumerated so the monthly harvest can count them. Copy the block and a filled example from the
+[session-log template](https://github.com/willzhu16/platform/blob/v1/handbook/templates/session-log.md);
+`scripts/session-log.sh` validates one and rejects a `<placeholder>` left unfilled.
 
 ## Changing these instructions
 
@@ -199,10 +216,10 @@ For repos deploying to Cloudflare Workers/Pages. Loaded in addition to the stack
 
 ## Runtime reality
 
-- **The Workers runtime is not Node.** Do not use Node built-ins (`fs`, `path`, `net`,
-  `child_process`, `process.env`) in request-path code. Use Web-standard APIs (`fetch`,
-  `URL`, `crypto.subtle`, `Request`/`Response`) and Workers bindings. `nodejs_compat` is
-  opt-in per binding, not a default to assume.
+- **The Workers runtime is not Node.** Biome rejects Node built-ins and `process.env` under
+  `src/`; use Web-standard APIs (`fetch`, `URL`, `crypto.subtle`, `Request`/`Response`) and
+  bindings instead of working around it. `nodejs_compat` ships on for Sentry, so such an
+  import can resolve at runtime and still be wrong — the lint rule is the signal, not the build.
 - CPU time per request is bounded (free tier). Keep handlers lean; no long-running loops,
   no synchronous heavy work. Long-running compute is out of scope for Workers (D-07).
 
