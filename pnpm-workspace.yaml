@@ -4,3 +4,11 @@ allowBuilds:
   esbuild: true
   workerd: true
   sharp: true
+
+# undici below 7.30.1 carries three advisories (GHSA-4qv8-2p9j-2685, GHSA-f72v-6w45-q472,
+# GHSA-xjj6-f33q-929c) and reaches us through wrangler -> miniflare, which pins it exactly, so
+# no lockfile refresh can lift it: wrangler 4.152.0 (2026-10-22) still pins 7.29.1. Nothing
+# here sends untrusted requests through miniflare, but `security / osv` gates the build.
+# Drop this once a wrangler release pins undici at 7.30.1 or later.
+overrides:
+  undici: ^7.30.1
