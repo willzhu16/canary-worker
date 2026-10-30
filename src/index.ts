@@ -1,8 +1,15 @@
-import { createLogger } from './lib/log.js';
+import * as Sentry from '@sentry/cloudflare';
+import { createLogger, toLogLevel } from './lib/log.js';
+import { buildSecurityTxt } from './lib/security-txt.js';
 import { withSecurityHeaders } from './middleware/security-headers.js';
 
 export interface Env {
   PROJECT_VERSION: string;
+  // Minimum level the logger emits. Absent or unrecognised means info, so debug output
+  // is opt-in per deployment rather than something a code change can leak into production.
+  LOG_LEVEL?: string;
+  // Error reporting (spec 08). Set with `wrangler secret put SENTRY_DSN`; unset = disabled.
+  SENTRY_DSN?: string;
 }
 
 const handle = (request: Request, env: Env): Response => {
@@ -11,32 +18,83 @@ const handle = (request: Request, env: Env): Response => {
   if (url.pathname === '/healthz') {
     return Response.json({ version: env.PROJECT_VERSION });
   }
+  // Vulnerability disclosure contact (spec 12 §2.2.6, RFC 9116).
+  if (url.pathname === '/.well-known/security.txt') {
+    const contact = 'https://github.com/willzhu16/canary-worker/security/advisories/new';
+    return new Response(buildSecurityTxt(contact), {
+      headers: { 'content-type': 'text/plain; charset=utf-8' },
+    });
+  }
   if (url.pathname === '/') {
     return new Response('Hello from canary-worker');
   }
   return new Response('Not Found', { status: 404 });
 };
 
-export default {
+/**
+ * The contract every response goes through: one log line per request, security headers on
+ * the way out, and a thrown handler turned into a 500 rather than an unhandled rejection.
+ *
+ * `route` is a parameter with a default rather than a closure so that last guarantee can be
+ * tested. A handler that throws is the one case no request can provoke from outside, and an
+ * untested catch branch means error reporting that has never been shown to work.
+ */
+export const handleRequest = (
+  request: Request,
+  env: Env,
+  route: (request: Request, env: Env) => Response = handle,
+): Response => {
+  const version = env.PROJECT_VERSION || 'dev';
+  const logger = createLogger(version, toLogLevel(env.LOG_LEVEL));
+  const requestId = crypto.randomUUID();
+  const start = Date.now();
+  const path = new URL(request.url).pathname;
+  try {
+    const response = route(request, { ...env, PROJECT_VERSION: version });
+    logger.info({
+      event: 'request_handled',
+      requestId,
+      route: path,
+      durationMs: Date.now() - start,
+    });
+    return withSecurityHeaders(response);
+  } catch (error) {
+    const err = error as Error;
+    Sentry.captureException(err);
+    logger.error({
+      event: 'request_failed',
+      requestId,
+      route: path,
+      err: { message: err.message },
+    });
+    return withSecurityHeaders(new Response('Internal Error', { status: 500 }));
+  }
+};
+
+const handler = {
   async fetch(request: Request, env: Env): Promise<Response> {
-    const version = env.PROJECT_VERSION || 'dev';
-    const logger = createLogger(version);
-    const requestId = crypto.randomUUID();
-    const start = Date.now();
-    const route = new URL(request.url).pathname;
-    try {
-      const response = handle(request, { ...env, PROJECT_VERSION: version });
-      logger.info({ event: 'request_handled', requestId, route, durationMs: Date.now() - start });
-      return withSecurityHeaders(response);
-    } catch (error) {
-      const err = error as Error;
-      logger.error({ event: 'request_failed', requestId, route, err: { message: err.message } });
-      return withSecurityHeaders(new Response('Internal Error', { status: 500 }));
-    }
+    return handleRequest(request, env);
   },
 
   async scheduled(_event: ScheduledController, env: Env): Promise<void> {
     // Heartbeat stub (spec 08): ping healthchecks.io / emit a metric here.
-    createLogger(env.PROJECT_VERSION || 'dev').info({ event: 'cron_heartbeat' });
+    createLogger(env.PROJECT_VERSION || 'dev', toLogLevel(env.LOG_LEVEL)).info({
+      event: 'cron_heartbeat',
+    });
   },
-};
+} satisfies ExportedHandler<Env>;
+
+/**
+ * Sentry client options (spec 08). Errors only: tracesSampleRate 0 stays inside Sentry's
+ * free quota, and Cloudflare's own tracing is now paid. `sendDefaultPii: false` keeps
+ * request data out of Sentry. An unset SENTRY_DSN safely disables Sentry — no events, no
+ * error. Named rather than inline so those settings can be asserted by a test.
+ */
+export const sentryOptions = (env: Env) => ({
+  dsn: env.SENTRY_DSN,
+  release: env.PROJECT_VERSION || 'dev',
+  tracesSampleRate: 0,
+  sendDefaultPii: false,
+});
+
+export default Sentry.withSentry(sentryOptions, handler);

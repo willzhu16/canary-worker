@@ -3,6 +3,8 @@
   "name": "canary-worker",
   "main": "src/index.ts",
   "compatibility_date": "2025-06-01",
+  // nodejs_compat is required by @sentry/cloudflare (AsyncLocalStorage) — see src/index.ts.
+  "compatibility_flags": ["nodejs_compat"],
   "observability": {
     "enabled": true
   },
@@ -10,6 +12,8 @@
     "crons": ["0 * * * *"]
   },
   "vars": {
-    "PROJECT_VERSION": "dev"
+    "PROJECT_VERSION": "dev",
+    // debug | info | warn | error. Anything else falls back to info.
+    "LOG_LEVEL": "info"
   }
 }
