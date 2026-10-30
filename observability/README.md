@@ -1,0 +1,67 @@
+# Observability — canary-worker
+
+How this project is observed (spec 08). Everything here is free-tier ($0). The goal:
+**observable from birth** — structured logs queryable, golden signals dashboarded, errors
+tied to releases, uptime public, SEV1s pushed to your phone.
+
+## Signal map
+
+| Signal | Producer | Destination | Status in this repo |
+|---|---|---|---|
+| Errors | `@sentry/cloudflare` (wired in) | Sentry free tier | **shipped** — `wrangler secret put SENTRY_DSN` to activate; `release` = version tag |
+| Logs | `src/lib/log.ts` (frozen schema) | Workers Logs → Grafana Loki | **shipped** (structured JSONL); Loki export wired at setup |
+| Uptime | Upptime repo `willzhu16/status` | GitHub Pages status page | add this app's URL to that repo |
+| Cron heartbeat | `scheduled()` handler | healthchecks.io | **stub shipped** when `needs_scheduled_jobs`; point it at a check |
+| Metrics | OTel counters/histograms | Grafana Mimir | **deferred** — Workers can't export custom metrics via OTel yet |
+| Traces | OTel auto-instrumentation | Grafana Tempo | **deferred** — Cloudflare tracing is a paid feature since 2026-03 |
+
+"Shipped" = already in the generated code. **Errors are wired in**: unhandled exceptions go
+to Sentry automatically once `SENTRY_DSN` is set (an unset DSN safely disables it — no
+events, no error). Metrics/traces are **deferred**: a free Worker currently has no free path
+to emit them, so use Cloudflare's built-in Workers analytics dashboard for request/latency
+graphs meanwhile, and revisit when Cloudflare's OTel metrics export ships.
+
+## Health endpoint (shipped, frozen contract)
+
+`GET /healthz` → `200 {"version":"<tag>"}` — no auth, no side effects, no binding fan-out.
+It answers "is the Worker alive", not "is every binding happy" (binding health is a metric,
+not an uptime probe). Consumed by Upptime, the release smoke check, and rollback
+verification (spec 07). Do not add dependency checks to it.
+
+## Logs
+
+`src/lib/log.ts` emits one JSON object per line against the frozen log schema
+(`handbook/log-schema.json`): `ts`, `level`, `event`, `projectVersion` always present;
+`event` is the primary query key. Query in Loki by `event`. Never log secrets, PII, or the
+bodies of auth/billing routes.
+
+## Dashboard & alerts
+
+The `platform/observability/dashboard-project-health.json` dashboard and `alerts.yaml`
+rules target a Grafana metrics pipeline. Its request-rate / latency / error-rate panels
+need the `http_server_*` metrics that a free Worker **cannot emit yet** (see the deferred
+rows above), so hold the metrics-based dashboard until that pipeline exists. Available now
+without metrics: **Sentry** for error trends and release regressions, **Upptime** for
+availability, and the **Cloudflare dashboard** for built-in request/latency graphs.
+
+## Backups & restore (spec 08 §4b)
+
+Recovery point objective at solo scale: **24h**.
+
+This project has no
+database, so no backup workflow is generated and no bucket is provisioned. Add `d1` to the
+bindings and re-render if that changes.
+
+R2 buckets holding user data get object versioning on; KV is treated as rebuildable cache
+(say otherwise in `THREAT.md` if it isn't). **A backup that has not been restored is a
+rumor** — the quarterly cadence restores the latest export into a scratch database and runs
+the smoke test. Steps are in platform's `backups/README.md`.
+
+## Out-of-band setup (human, once per project)
+
+1. Create a Sentry project (free Developer plan) → `wrangler secret put SENTRY_DSN`. This
+   is the one that lights up real signal today; skip it and Sentry stays dormant.
+2. Add this app's public URL to `willzhu16/status` (Upptime); confirm `/healthz` goes green.
+3. Subscribe the ntfy app on your phone to the SEV1 topic (Upptime downtime → ntfy).
+4. Deferred until Cloudflare's metrics export ships: Grafana Cloud account + OTLP/Loki
+   tokens, then import the dashboard.
