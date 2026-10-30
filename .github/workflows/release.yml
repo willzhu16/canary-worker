@@ -17,6 +17,7 @@ permissions:
 jobs:
   release:
     uses: willzhu16/platform/.github/workflows/release.yml@v1
+    secrets: inherit
     with:
       tag: ${{ inputs.tag || '' }}
       deploy: true
