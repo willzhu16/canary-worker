@@ -1,0 +1,86 @@
+name: canary
+
+# This repo is the fleet's canary. A platform release moves platform's `canary` tag first, and
+# `v1`, which every repo pins, follows only after this workflow has run the release here.
+# While the two tags differ, each shared workflow runs twice: at @v1 (stable-* jobs) and at
+# @canary (canary-* jobs). platform's promote-canary.yml reads the run (this repo is public,
+# so it needs no token) and moves v1 when nothing that passes on stable fails on canary.
+# A check this repo fails on its own fails on both sides and holds nothing back.
+#
+# Not part of the template, so template-sync leaves it alone. Every @canary reference
+# needs the tag to exist, which the first canary-gated platform release creates.
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Run both sides even when canary and v1 are on the same release
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  pending:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.compare.outputs.run }}
+    steps:
+      - name: Is a release waiting behind canary
+        id: compare
+        env:
+          FORCE: ${{ inputs.force }}
+        run: |
+          platform='https://github.com/willzhu16/platform.git'
+          tags="$(git ls-remote --tags "$platform" refs/tags/v1 refs/tags/canary)"
+          v1="$(awk '$2 == "refs/tags/v1" { print $1 }' <<<"$tags")"
+          canary="$(awk '$2 == "refs/tags/canary" { print $1 }' <<<"$tags")"
+          echo "v1=${v1} canary=${canary:-none}"
+          if [ "$FORCE" = true ] || { [ -n "$canary" ] && [ "$canary" != "$v1" ]; }; then
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'run=false' >> "$GITHUB_OUTPUT"
+          fi
+
+  stable-ci:
+    needs: pending
+    if: needs.pending.outputs.run == 'true'
+    uses: willzhu16/platform/.github/workflows/ci.yml@v1
+  canary-ci:
+    needs: pending
+    if: needs.pending.outputs.run == 'true'
+    uses: willzhu16/platform/.github/workflows/ci.yml@canary
+
+  stable-security:
+    needs: pending
+    if: needs.pending.outputs.run == 'true'
+    uses: willzhu16/platform/.github/workflows/security.yml@v1
+  canary-security:
+    needs: pending
+    if: needs.pending.outputs.run == 'true'
+    uses: willzhu16/platform/.github/workflows/security.yml@canary
+
+  stable-codeql:
+    needs: pending
+    if: needs.pending.outputs.run == 'true'
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    uses: willzhu16/platform/.github/workflows/codeql.yml@v1
+    with:
+      languages: javascript-typescript
+  canary-codeql:
+    needs: pending
+    if: needs.pending.outputs.run == 'true'
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    uses: willzhu16/platform/.github/workflows/codeql.yml@canary
+    with:
+      languages: javascript-typescript
