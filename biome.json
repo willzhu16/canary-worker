@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.5.2/schema.json",
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "vcs": {
     "enabled": true,
     "clientKind": "git",
@@ -34,5 +34,42 @@
     "rules": {
       "recommended": true
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["src/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["node:*"]
+                  },
+                  {
+                    "group": [
+                      "fs",
+                      "fs/promises",
+                      "path",
+                      "net",
+                      "child_process",
+                      "os",
+                      "stream",
+                      "crypto",
+                      "http",
+                      "https",
+                      "worker_threads"
+                    ]
+                  }
+                ]
+              }
+            },
+            "noProcessEnv": "error"
+          }
+        }
+      }
+    }
+  ]
 }

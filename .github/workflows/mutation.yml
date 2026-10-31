@@ -1,0 +1,44 @@
+name: mutation
+
+# Mutation testing (spec 01). The other gates answer "did the tests run and pass". This one
+# answers "would a test have noticed if the code were wrong": Stryker rewrites src/ a
+# hundred ways and fails the run if too few of those edits break a test.
+#
+# Repo-local rather than a call into platform's reusable ci.yml: it costs minutes rather
+# than seconds, so it is a separate check that can be watched without slowing the fast
+# gates down. The score floor is `thresholds.break` in stryker.config.json.
+#
+# This check is not in the Artemis main ruleset, so it reports red without blocking a merge
+# until the ruleset lists it.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# One live run per branch: a superseded push cancels the previous run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  mutation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          package_json_file: package.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Mutation test
+        run: pnpm run test:mutation
