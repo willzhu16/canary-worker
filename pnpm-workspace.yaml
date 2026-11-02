@@ -1,5 +1,3 @@
-# pnpm reads build-script approvals here. These are wrangler's own toolchain deps
-# (bundler, runtime, image lib) and need their install scripts to run.
 allowBuilds:
   esbuild: true
   workerd: true
@@ -11,7 +9,7 @@ allowBuilds:
 # here sends untrusted requests through miniflare, but `security / osv` gates the build.
 # Drop this once a wrangler release pins undici at 7.30.1 or later.
 overrides:
-  undici: ^7.30.1
+  undici: ^8.0.0
   # qs below 6.16.1 carries four advisories (GHSA-4mjr-xmp4-gh2g, GHSA-6pq8-jhm2-2vcw,
   # GHSA-q8mj-m7cp-5q26, GHSA-x5fp-wj9c-mxmx) and reaches us through @stryker-mutator/core ->
   # typed-rest-client 2.3.1, which pins 6.15.1 exactly. athena overrides it for the same reason.
