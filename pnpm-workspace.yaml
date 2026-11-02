@@ -1,5 +1,3 @@
-# pnpm reads build-script approvals here. These are wrangler's own toolchain deps
-# (bundler, runtime, image lib) and need their install scripts to run.
 allowBuilds:
   esbuild: true
   workerd: true
@@ -17,7 +15,7 @@ overrides:
   # typed-rest-client 2.3.1, which pins 6.15.1 exactly. athena overrides it for the same reason.
   # Pinned, not a range: a range took 6.17.1, published a day earlier, inside the three-day
   # wait for new releases. Drop this once a Stryker release stops pulling the pin in.
-  qs: 6.16.1
+  qs: 6.17.1
   # minimatch below 11.0.1 carries GHSA-g3hv-75wg-m249 (glob DoS) and reaches us through
   # @stryker-mutator/core 10.1.1, which asks for ~10.2.4; no 10.x release has the fix. Stryker
   # calls only Minimatch#match, #negate, #hasMagic and minimatch(), none of which 11.0 removed.
